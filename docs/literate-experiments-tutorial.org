@@ -1,0 +1,268 @@
+#+TITLE: Literate Experiments: Daily Log, Sanitized Library, Frozen by Git Tag (Minimal)
+#+OPTIONS: toc:2 num:t
+
+* The model in one paragraph
+
+You keep two files in one repository on one branch. =Experiments.org= is a
+running log: one section per day, throwaway by default. =sanitized.org= is the
+definitive, cleaned-up version. At the end of any day worth remembering you
+commit and put an *annotated tag* on that commit (=exp/YY_DDD=). When a block
+from a past day earns its keep, =sanitized.org= pulls it in by *transcluding the
+tagged revision* of =Experiments.org=. The pulled content is *baked into
+=sanitized.org= and committed* — a frozen snapshot, not a live link, and it
+tangles like any ordinary source block. The link is the citation; the baked
+text is the evidence. Nothing updates silently, which is the point.
+
+This is the minimal version: no component-type registration, no validators.
+Raw =orgit-file:= links in a =:transclude= header. Add those back only if the
+boilerplate ever starts to hurt.
+
+* Why a tag and not a branch
+
+A branch is a *mutable pointer*; it moves the moment you commit on it, and a
+transclusion pinned to a branch name silently changes bytes. A tag is an
+immutable-by-convention pointer that keeps its commit reachable forever (so
+=git gc= can never prune the cited history) and carries no expectation of
+future development. "The version of the code on day X" is exactly what a tag
+is. Use a branch only for a genuinely multi-day divergent effort you intend to
+merge or kill as a whole — not for daily exploration.
+
+* One-time setup
+
+** Packages
+
+Three layers do the work; the fourth (registration) is intentionally omitted.
+
+- =org-transclusion= — fetches and extracts content.
+- =orgit= — provides the =orgit-file:= link type (a file at a git revision).
+- =org-transclusion-orgit= — lets =org-transclusion= resolve =orgit-file:=
+  links. *Required even in the minimal setup* — this is the layer that performs
+  the git fetch, separate from the headers/registration layer you are skipping.
+  (Becomes unnecessary once org-transclusion's /transient/ branch lands; do not
+  over-invest here.)
+- =org-transclusion-blocks= — gives you the =:transclude= header and the
+  =add= command. You use only its default header; you do *not* register types.
+
+#+begin_src emacs-lisp
+(use-package org-transclusion
+  :ensure t)
+
+(use-package orgit
+  :ensure t)
+
+(use-package org-transclusion-orgit
+  :after org-transclusion
+  :straight (org-transclusion-orgit
+             :type git :host github
+             :repo "gggion/org-transclusion-orgit"))
+
+(use-package org-transclusion-blocks
+  :after org-transclusion
+  :straight (org-transclusion-blocks
+             :type git :host github
+             :repo "gggion/org-transclusion-blocks")
+  :custom
+  (org-transclusion-blocks-escape-org-sources t)
+  :bind (:map org-mode-map
+              ("C-c n t" . org-transclusion-blocks-add)))
+#+end_src
+
+That is the entire elisp footprint. No =register-type=, no validator function.
+
+The two =gggion= packages are not on MELPA at time of writing. On Guix/Nix,
+package them from the same GitHub refs instead of =:straight=; the manual
+fallback is =(add-to-list 'load-path "/path/to/clone")= then =(require
+'org-transclusion-blocks)=.
+
+** Repository conventions
+
+#+begin_src bash
+cd ~/r/gh/learning-origt-transclusion
+git init                       # if not already a repo
+touch Experiments.org sanitized.org
+git add Experiments.org sanitized.org
+git commit --message "scaffold: experiments log + sanitized library"
+#+end_src
+
+Conventions you hold to:
+
+- Tag namespace: =exp/YY_DDD= (annotated, never force-moved).
+- =Experiments.org= is append-only in spirit. Past days are not edited; that is
+  what makes a tag an honest snapshot.
+- Give each block you might later cite a stable =CUSTOM_ID=.
+
+* The daily loop
+
+** 1. Open the log and add today's section
+
+#+begin_src org
+,* 26_158  salabim card-flow spike
+:PROPERTIES:
+:DATE: [2026-06-07]
+:END:
+
+Trying a discrete-event model of card flow. Most of this is scratch.
+
+,** parse-card-id
+:PROPERTIES:
+:CUSTOM_ID: parse-card-id-26_158
+:END:
+
+,#+name: parse-card-id
+,#+begin_src nu
+def "card id-of" [row] {
+    $row.title | parse "{id}: {rest}" | get id.0
+}
+,#+end_src
+#+end_src
+
+** 2. Hack. Discard freely. Most blocks die here.
+
+** 3. At end of a day worth keeping: commit, then tag
+
+#+begin_src bash
+git add Experiments.org
+git commit --message "exp 26_158: salabim card-flow spike"
+git tag --annotate exp/26_158 --message "card-flow spike; parse-card-id worth keeping"
+#+end_src
+
+That commit is now frozen and permanently reachable through the tag, regardless
+of what you do to the working tree later.
+
+* Promoting a keeper into =sanitized.org=
+
+In =sanitized.org=, write a block with a raw =orgit-file:= link in a
+=:transclude= header and an empty body. The link format is
+=orgit-file:REPO::REV::FILE::SEARCH=.
+
+#+begin_src org
+,* Card identity
+
+The card-id parser, lifted from the 26_158 spike.
+
+,#+HEADER: :transclude [[orgit-file:~/r/gh/kanban.nushell::exp/26_158::Experiments.org::#parse-card-id-26_158]]
+,#+HEADER: :transclude-keywords ":only-contents"
+,#+begin_src nu :tangle src/card_id.nu
+,#+end_src
+#+end_src
+
+Put point in the block and run =C-c n t=. The frozen content from
+=Experiments.org@exp/26_158= is fetched and *baked into the block body* and
+saved to the file. Commit it:
+
+#+begin_src bash
+git add sanitized.org
+git commit --message "sanitized: adopt parse-card-id from exp/26_158"
+#+end_src
+
+The =:transclude= link stays above the baked block as the citation: it records
+that this code is the frozen =parse-card-id= from tag =exp/26_158=, readable
+without trusting the surrounding prose.
+
+* Reusing and updating citations
+
+** Cite the same keeper from multiple places
+
+Repeat the header block wherever you need it, same revision in the link. Each
+site bakes its own snapshot; they cannot diverge from the tag because the tag
+never moves.
+
+** Move a citation to a newer revision
+
+You revisited the parser on day 26_171 and tagged =exp/26_171=. To adopt it,
+*clear the baked body first*, change the rev in the link, re-run:
+
+#+begin_src org
+,#+HEADER: :transclude [[orgit-file:~/r/gh/kanban.nushell::exp/26_171::Experiments.org::#parse-card-id-26_171]]
+,#+HEADER: :transclude-keywords ":only-contents"
+,#+begin_src nu :tangle src/card_id.nu
+;; (delete the old baked lines here, leaving the block empty)
+,#+end_src
+#+end_src
+
+=C-c n t= again, then commit. Clearing first matters: =add= inserts content,
+and re-running over a non-empty body is not guaranteed to replace cleanly.
+
+* Tangling
+
+Because the content is real text in a real =#+begin_src nu= block, plain
+=org-babel-tangle= over =sanitized.org= writes =src/card_id.nu= like any other
+block — the transclusion machinery is invisible to tangle. Run =C-c C-v t= in
+=sanitized.org=.
+
+To assemble a larger program from several keepers, give each baked block a
+=#+name:= and use =<<name>>= noweb references, or =#+call:=. Tangle resolves
+those normally because the named blocks are concrete text, not overlays.
+
+* Verification and troubleshooting
+
+- *Test the link by hand*: put point on the
+  =[[orgit-file:...]]= link and press =C-c C-o=. If that fails, the link — not
+  the setup — is wrong.
+- *Debug fetch failures*: =(setq org-transclusion-debug t)=, retry =C-c n t=,
+  read =*Messages*=.
+- *Confirm the tag points where you think*:
+  =git show exp/26_158:Experiments.org= prints the frozen file.
+
+** Gotchas that will bite
+
+- *A SEARCH that starts with =(=*: a header value beginning with =(= can be
+  read as elisp and error. Targeting by =#custom-id= (as above) sidesteps this
+  entirely; only relevant if you search by leading-paren sexp.
+- *Staleness is by design*: nothing re-syncs a baked block. You re-run =add=
+  deliberately. That is what protects your recorded results.
+- *Never =git tag --force= an =exp/*= tag.* That single command reintroduces the
+  mutation hazard this scheme exists to prevent.
+- *=:level= and =:exclude-elements=* are documented as not fully working in
+  =org-transclusion-blocks=. Stick to =:only-contents= and =:lines=.
+
+* Two optional moves
+
+** Inspect a whole past day without disturbing refs
+
+#+begin_src bash
+git worktree add --detach ../wt-26_158 exp/26_158
+# poke around ../wt-26_158 with the full tree as it was that day
+git worktree remove ../wt-26_158
+#+end_src
+
+The tag keeps the history alive; the worktree is disposable. No branch needed.
+
+** Feed your kanban backend
+
+The tag namespace is your index of keepers' origins:
+
+#+begin_src bash
+git tag --list 'exp/*'
+git for-each-ref --format='%(refname:short) %(creatordate:short) %(subject)' refs/tags/exp
+#+end_src
+
+Pipe that into Nushell and each tag becomes a card with a date and a one-line
+description — so your own tool, not a 20-star Emacs package, stays the durable
+source of truth for which keeper came from where.
+
+* When to add the machinery back
+
+You skipped the component-type registration and the git-ref validator on
+purpose. Add them only when the pain actually shows up:
+
+- *Repeated =~/r/gh/kanban.nushell::= boilerplate grates* → register an
+  =orgit-file= type so the repo is a single inherited =:orgit-repo= header.
+- *You want the repo set once for a whole sanitized subtree* → property
+  inheritance, which the raw link can't give you.
+- *You want a citation rejected before fetch* → and if so, write a validator
+  that runs =git rev-parse --verify --quiet=, which checks the tag *exists*. A
+  regex that only checks the ref's *shape* is reassurance without coverage; do
+  not bother with that one.
+
+Until one of those bites, the raw link is the correct amount of tool.
+
+* Honest limits
+
+=org-transclusion-blocks= and =org-transclusion-orgit= are young, single-author
+packages; the former marks its org-transclusion integration "in progress." The
+mitigating fact: the workflow *degrades gracefully*. Baked content is plain
+committed org text and the =#+HEADER:= line is a plain org keyword, so if either
+package is abandoned your files remain valid org and still tangle — you lose
+re-fetch convenience, not your data or history. Treat the whole thing as
+*cite-and-snapshot*, never as a live include, and you will not be surprised.
