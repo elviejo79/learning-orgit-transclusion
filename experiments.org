@@ -1,0 +1,13 @@
+* Day: 26-158 salabim card-flow spike
+
+Trying a discrete event model of card flow.
+Most of this is disposable.
+
+** parse-card-id
+
+#+name: parse-card-id
+#+begin_src nu
+  def "card id-of" [row] {
+  $row.title | parse "{id}: {rest}" | get id.o
+  }
+#+end_src
