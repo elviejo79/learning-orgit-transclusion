@@ -44,27 +44,17 @@ Three layers do the work; the fourth (registration) is intentionally omitted.
   =add= command. You use only its default header; you do *not* register types.
 
 #+begin_src emacs-lisp
-(use-package org-transclusion
-  :ensure t)
+    (use-package org-transclusion
+      :ensure t)
 
-(use-package orgit
-  :ensure t)
+    (use-package orgit
+      :ensure t)
 
-(use-package org-transclusion-orgit
-  :after org-transclusion
-  :straight (org-transclusion-orgit
-             :type git :host github
-             :repo "gggion/org-transclusion-orgit"))
+    (unless (package-installed-p 'org-transclusion-orgit)
+    (package-vc-install "https://github.com/gggion/org-transclusion-orgit"))
+  (unless (package-installed-p 'org-transclusion-blocks)
+    (package-vc-install "https://github.com/gggion/org-transclusion-blocks"))
 
-(use-package org-transclusion-blocks
-  :after org-transclusion
-  :straight (org-transclusion-blocks
-             :type git :host github
-             :repo "gggion/org-transclusion-blocks")
-  :custom
-  (org-transclusion-blocks-escape-org-sources t)
-  :bind (:map org-mode-map
-              ("C-c n t" . org-transclusion-blocks-add)))
 #+end_src
 
 That is the entire elisp footprint. No =register-type=, no validator function.

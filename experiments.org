@@ -4,8 +4,11 @@ Trying a discrete event model of card flow.
 Most of this is disposable.
 
 ** parse-card-id
+:PROPERTIES:
+:CUSTOM_ID: parse-card-id-26_158
+:END:
 
-#+name: parse-card-id
+#+name: code-blokc-parse-card-id-26-158
 #+begin_src nu
   def "card id-of" [row] {
   $row.title | parse "{id}: {rest}" | get id.o
